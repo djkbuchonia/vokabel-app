@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vokabel-App · Türkisch–Deutsch</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon.ico">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B0B0C">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --black:#0B0B0C;
+    --white:#FFFFFF;
+    --paper:#F4F4F2;
+    --red:#E30613;
+    --red-dark:#A80510;
+    --gray:#8A8A8E;
+    --line:#E7E7E4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    font-family:'Inter',sans-serif;
+    color:var(--black);
+    min-height:100vh;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--white);
+    display:flex;
+    flex-direction:column;
+  }
+  @media (min-width:760px){
+    #app{max-width:820px;}
+  }
+  @media (min-width:1100px){
+    #app{max-width:1100px;flex-direction:row;}
+  }
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 22px;
+    border-bottom:1px solid var(--line);
+  }
+  @media (min-width:1100px){
+    .topbar{display:none;}
+  }
+  .brand{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:0.04em;
+  }
+  .brand .accent{color:var(--red);}
+  .switch-profile{
+    font-size:11px;
+    font-weight:600;
+    color:var(--gray);
+    background:none;
+    border:none;
+    cursor:pointer;
+  }
+
+  .sidebar{
+    display:none;
+    width:110px;
+    flex-shrink:0;
+    background:var(--paper);
+    padding:28px 0;
+    flex-direction:column;
+    align-items:center;
+    border-right:1px solid var(--line);
+  }
+  @media (min-width:1100px){
+    .sidebar{display:flex;}
+  }
+  .sidebar .brand{margin-bottom:34px;}
+  .sidebar .brand .accent{display:block;}
+  .sidebar .switch-profile{margin-top:auto;}
+
+  .tabbar{
+    display:flex;
+    justify-content:space-around;
+    padding:12px 0;
+    border-top:1px solid var(--line);
+    order:2;
+  }
+  @media (min-width:1100px){
+    .tabbar{display:none;}
+  }
+  .tab-item{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    font-size:10px;
+    font-weight:600;
+    color:var(--gray);
+    cursor:pointer;
+    background:none;
+    border:none;
+  }
+  .tab-item.active{color:var(--red);}
+  .tab-dot{width:18px;height:18px;border-radius:6px;background:currentColor;opacity:0.15;}
+  .tab-item.active .tab-dot{opacity:1;background:var(--red);}
+
+  .nav-item{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    font-size:10px;
+    font-weight:600;
+    color:var(--gray);
+    cursor:pointer;
+    padding:12px 0;
+    width:100%;
+    border-left:3px solid transparent;
+  }
+  .nav-item.active{color:var(--red);border-left:3px solid var(--red);}
+  .nav-item .tab-dot{opacity:0.15;}
+  .nav-item.active .tab-dot{opacity:1;background:var(--red);}
+
+  main{
+    flex:1;
+    padding:24px 22px 20px;
+    overflow-y:auto;
+  }
+  @media (min-width:1100px){
+    main{padding:40px 48px;}
+  }
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .top-label{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--red);
+    margin-bottom:4px;
+  }
+  h2{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:22px;
+    font-weight:700;
+    margin-bottom:2px;
+  }
+  .sub{font-size:13px;color:var(--gray);margin-bottom:20px;}
+
+  .btn-primary{
+    background:var(--red);color:var(--white);border:none;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;
+    padding:16px;border-radius:14px;width:100%;cursor:pointer;
+  }
+  .btn-primary:disabled{opacity:0.35;cursor:not-allowed;}
+  .btn-primary:active:not(:disabled){background:var(--red-dark);}
+  .btn-ghost{
+    background:none;border:1.5px solid var(--line);color:var(--black);
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13px;
+    padding:13px;border-radius:14px;width:100%;cursor:pointer;
+  }
+
+  /* profile picker */
+  .profile-screen{
+    max-width:340px;margin:60px auto 0;text-align:center;
+  }
+  .profile-screen h1{
+    font-family:'Space Grotesk',sans-serif;font-size:24px;margin-bottom:6px;
+  }
+  .profile-list{display:flex;flex-direction:column;gap:10px;margin:26px 0;}
+  .profile-btn{
+    display:flex;align-items:center;gap:12px;
+    padding:14px 16px;border-radius:14px;border:1.5px solid var(--line);
+    background:var(--white);cursor:pointer;font-family:'Inter',sans-serif;
+    font-weight:600;font-size:14px;text-align:left;
+  }
+  .profile-btn:hover{border-color:var(--red);}
+  .avatar{
+    width:34px;height:34px;border-radius:50%;background:var(--black);color:var(--white);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;flex-shrink:0;
+  }
+  .new-profile-row{display:flex;gap:8px;margin-top:6px;}
+  .new-profile-row input{
+    flex:1;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;
+    font-family:'Inter',sans-serif;font-size:14px;
+  }
+  .new-profile-row button{
+    background:var(--black);color:var(--white);border:none;border-radius:12px;
+    padding:0 18px;font-weight:700;cursor:pointer;
+  }
+
+  /* dashboard */
+  .level-badge{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;
+    background:var(--black);color:var(--white);display:inline-flex;align-items:center;gap:6px;
+    padding:6px 12px;border-radius:100px;margin-bottom:22px;
+  }
+  .level-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--red);}
+  .dash-grid{display:flex;flex-direction:column;}
+  @media (min-width:760px){
+    .dash-grid{flex-direction:row;align-items:flex-start;gap:36px;}
+    .dash-left{width:220px;flex-shrink:0;}
+    .dash-right{flex:1;}
+  }
+  .ring-wrap{display:flex;justify-content:center;margin:10px 0 24px;position:relative;}
+  .ring-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+  .ring-center .num{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;line-height:1;}
+  .ring-center .label{font-size:11px;color:var(--gray);margin-top:4px;}
+  .stat-row{display:flex;gap:10px;margin-bottom:22px;}
+  .stat-card{flex:1;background:var(--paper);border-radius:14px;padding:14px;}
+  .stat-card .val{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;}
+  .stat-card .lab{font-size:11px;color:var(--gray);margin-top:2px;}
+  .next-test-card{
+    background:var(--black);color:var(--white);border-radius:16px;padding:16px 18px;
+    margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .next-test-card .t1{font-size:11px;color:#B8B8BA;text-transform:uppercase;letter-spacing:0.08em;}
+  .next-test-card .t2{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin-top:3px;}
+
+  /* flashcard */
+  .card-progress{display:flex;gap:4px;margin-bottom:22px;}
+  .card-progress span{flex:1;height:4px;border-radius:2px;background:var(--line);}
+  .card-progress span.done{background:var(--red);}
+  .card-progress span.current{background:var(--black);}
+  .flip-scene{perspective:1200px;margin-bottom:20px;}
+  .flip-card{
+    width:100%;height:260px;position:relative;transform-style:preserve-3d;
+    transition:transform .5s cubic-bezier(.4,.2,.2,1);cursor:pointer;
+  }
+  .flip-card.flipped{transform:rotateY(180deg);}
+  .face{
+    position:absolute;inset:0;border-radius:20px;backface-visibility:hidden;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:20px;text-align:center;
+  }
+  .face.front{background:var(--paper);border:1.5px solid var(--line);}
+  .face.back{background:var(--black);color:var(--white);transform:rotateY(180deg);}
+  .face .lang-tag{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--red);margin-bottom:14px;}
+  .face .word{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;margin-bottom:10px;}
+  .face .example{font-size:12px;color:var(--gray);}
+  .face.back .example{color:#B8B8BA;}
+  .face .hint{position:absolute;bottom:14px;font-size:11px;color:var(--gray);}
+  .face.back .hint{color:#7A7A7D;}
+  .mic-row{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:20px;}
+  .icon-btn{
+    padding:0 18px;height:48px;border-radius:24px;border:1.5px solid var(--line);background:var(--white);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;font-weight:600;gap:6px;
+  }
+
+  /* test */
+  .test-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .test-counter{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;color:var(--gray);}
+  .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:4px 9px;border-radius:100px;}
+  .tag-new{background:var(--black);color:var(--white);}
+  .tag-old{background:var(--paper);color:var(--black);border:1px solid var(--line);}
+  .question-card{background:var(--paper);border-radius:18px;padding:26px 20px;text-align:center;margin-bottom:16px;}
+  .question-card .qlabel{font-size:11px;color:var(--gray);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;}
+  .question-card .qword{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;}
+  .answer-input{
+    width:100%;border:1.5px solid var(--line);border-radius:14px;padding:16px;
+    font-family:'Inter',sans-serif;font-size:15px;margin-bottom:14px;text-align:center;
+  }
+
+  /* results */
+  .score-wrap{display:flex;justify-content:center;margin:20px 0 22px;}
+  .score-badge{
+    width:150px;height:150px;border-radius:50%;background:var(--black);color:var(--white);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+  }
+  .score-badge .pct{font-family:'Space Grotesk',sans-serif;font-size:38px;font-weight:700;}
+  .score-badge .lab{font-size:11px;color:#B8B8BA;margin-top:4px;}
+  .result-status{text-align:center;margin-bottom:22px;}
+  .result-status .headline{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:var(--red);}
+  .result-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+  .result-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--paper);border-radius:12px;font-size:13px;}
+  .result-row .mark{font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;}
+  .mark.ok{background:var(--black);color:var(--white);}
+  .mark.no{background:var(--red);color:var(--white);}
+
+  .loading{text-align:center;color:var(--gray);font-size:13px;padding:40px 0;}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="sidebar">
+    <div class="brand"><span class="accent">V</span>oka<span class="accent">·</span>App</div>
+    <div class="nav-item active" data-view="dashboard" onclick="goToView('dashboard')"><div class="tab-dot"></div>Home</div>
+    <div class="nav-item" data-view="learn" onclick="goToView('learn')"><div class="tab-dot"></div>Lernen</div>
+    <div class="nav-item" data-view="test" onclick="goToView('test')"><div class="tab-dot"></div>Test</div>
+    <div class="nav-item" data-view="results" onclick="goToView('results')"><div class="tab-dot"></div>Profil</div>
+    <button class="switch-profile" onclick="switchProfile()">Profil wechseln</button>
+  </div>
+
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+    <div class="topbar">
+      <div class="brand"><span class="accent">Voka</span>·App</div>
+      <button class="switch-profile" id="topbarName" onclick="switchProfile()">wechseln</button>
+    </div>
+
+    <main>
+
+      <!-- PROFILE PICKER -->
+      <div class="view active" id="view-profile">
+        <div class="profile-screen">
+          <h1>Wer lernt gerade?</h1>
+          <div class="sub" id="profileLoadStatus">Profile werden geladen …</div>
+          <div class="profile-list" id="profileList"></div>
+          <div class="new-profile-row">
+            <input type="text" id="newProfileName" placeholder="Neuer Name …" maxlength="20">
+            <button onclick="createProfile()">Anlegen</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div class="view" id="view-dashboard">
+        <div class="level-badge"><span class="dot"></span><span id="dashLevel">A1 · Woche 1</span></div>
+        <h2 id="dashGreeting">Merhaba</h2>
+        <div class="sub" id="dashSub">Los geht's mit deinem ersten Set</div>
+
+        <div class="dash-grid">
+          <div class="dash-left">
+            <div class="ring-wrap">
+              <svg width="180" height="180" viewBox="0 0 180 180"><g id="segments"></g></svg>
+              <div class="ring-center">
+                <div class="num" id="ringNum">0/20</div>
+                <div class="label">Vokabeln</div>
+              </div>
+            </div>
+          </div>
+          <div class="dash-right">
+            <div class="next-test-card">
+              <div>
+                <div class="t1">Wochentest</div>
+                <div class="t2" id="testStatusText">Noch nicht bereit</div>
+              </div>
+              <div style="font-size:22px;">⏱</div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-card"><div class="val" id="statTests">0</div><div class="lab">Tests gemacht</div></div>
+              <div class="stat-card"><div class="val" id="statAvg">–</div><div class="lab">Ø Testscore</div></div>
+              <div class="stat-card"><div class="val" id="statLearned">0</div><div class="lab">Gelernt</div></div>
+            </div>
+            <button class="btn-primary" onclick="goToView('learn')">Weiter lernen</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEARN -->
+      <div class="view" id="view-learn">
+        <div class="top-label">Lernkarte</div>
+        <h2 id="learnSetTitle">Set 1 · A1</h2>
+        <div class="sub" id="learnCounter">Vokabel 1 von 20</div>
+        <div class="card-progress" id="cardProgress"></div>
+        <div class="flip-scene">
+          <div class="flip-card" id="flipCard" onclick="this.classList.toggle('flipped')">
+            <div class="face front">
+              <div class="lang-tag">Deutsch</div>
+              <div class="word" id="frontWord">–</div>
+              <div class="example" id="frontExample"></div>
+              <div class="hint">Tippen zum Umdrehen</div>
+            </div>
+            <div class="face back">
+              <div class="lang-tag">Türkçe</div>
+              <div class="word" id="backWord">–</div>
+              <div class="example" id="backExample"></div>
+              <div class="hint">Tippen zum Zurückdrehen</div>
+            </div>
+          </div>
+        </div>
+        <div class="mic-row">
+          <div class="icon-btn" onclick="event.stopPropagation();speak(currentLearnWord().de,'de-DE')">🔊 Deutsch</div>
+          <div class="icon-btn" onclick="event.stopPropagation();speak(currentLearnWord().tr,'tr-TR')">🔊 Türkçe</div>
+        </div>
+        <button class="btn-primary" onclick="nextLearnCard()">Weiter</button>
+      </div>
+
+      <!-- TEST -->
+      <div class="view" id="view-test">
+        <div class="test-header">
+          <div>
+            <div class="top-label">Wochentest</div>
+            <h2 style="font-size:18px;" id="testSetTitle">Set 1 · A1</h2>
+          </div>
+          <div class="test-counter" id="testCounter">Frage 1/20</div>
+        </div>
+        <div style="margin-bottom:14px;"><span class="tag" id="testTag">Neue Vokabel</span></div>
+        <div class="question-card">
+          <div class="qlabel">Was heißt das auf Türkisch?</div>
+          <div class="qword" id="testWord">–</div>
+        </div>
+        <input class="answer-input" id="testInput" placeholder="Antwort eingeben …" onkeydown="if(event.key==='Enter')submitAnswer()">
+        <button class="btn-primary" onclick="submitAnswer()">Antwort bestätigen</button>
+      </div>
+
+      <!-- RESULTS -->
+      <div class="view" id="view-results">
+        <div class="top-label">Auswertung</div>
+        <h2 id="resultsTitle">Wochentest</h2>
+        <div class="sub" id="resultsDate"></div>
+        <div class="score-wrap">
+          <div class="score-badge">
+            <div class="pct" id="resultsPct">–</div>
+            <div class="lab" id="resultsFrac"></div>
+          </div>
+        </div>
+        <div class="result-status">
+          <div class="headline" id="resultsHeadline"></div>
+        </div>
+        <div class="result-list" id="resultsList"></div>
+        <button class="btn-ghost" onclick="goToView('dashboard')">Zurück zum Dashboard</button>
+      </div>
+
+    </main>
+
+    <div class="tabbar">
+      <button class="tab-item active" data-view="dashboard" onclick="goToView('dashboard')"><div class="tab-dot"></div>Home</button>
+      <button class="tab-item" data-view="learn" onclick="goToView('learn')"><div class="tab-dot"></div>Lernen</button>
+      <button class="tab-item" data-view="test" onclick="goToView('test')"><div class="tab-dot"></div>Test</button>
+      <button class="tab-item" data-view="results" onclick="goToView('results')"><div class="tab-dot"></div>Profil</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Firebase Setup ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyBgDhps4JsZuRnJW42utfyrQDuI_LIxpeo",
+  authDomain: "vokabel-app-564ea.firebaseapp.com",
+  databaseURL: "https://vokabel-app-564ea-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "vokabel-app-564ea",
+  storageBucket: "vokabel-app-564ea.firebasestorage.app",
+  messagingSenderId: "1042771451988",
+  appId: "1:1042771451988:web:64847a5ed7b6e6b1020dc1"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ---------- Vokabel-Content ---------- */
+/* Woche 1, Level A1 – weitere Wochen/Sets können hier einfach ergänzt werden */
+const VOCAB_SETS = {
+  1: {
+    level: "A1",
+    words: [
+      {id:"w1",  de:"das Haus",     tr:"ev",       ex_de:"Das Haus ist groß.",           ex_tr:"Ev büyük."},
+      {id:"w2",  de:"das Wasser",   tr:"su",       ex_de:"Ich trinke Wasser.",           ex_tr:"Su içiyorum."},
+      {id:"w3",  de:"das Brot",     tr:"ekmek",    ex_de:"Das Brot ist frisch.",         ex_tr:"Ekmek taze."},
+      {id:"w4",  de:"das Buch",     tr:"kitap",    ex_de:"Ich lese ein Buch.",           ex_tr:"Bir kitap okuyorum."},
+      {id:"w5",  de:"der Freund",   tr:"arkadaş",  ex_de:"Er ist mein Freund.",          ex_tr:"O benim arkadaşım."},
+      {id:"w6",  de:"die Familie",  tr:"aile",     ex_de:"Meine Familie ist groß.",      ex_tr:"Ailem büyük."},
+      {id:"w7",  de:"die Mutter",   tr:"anne",     ex_de:"Meine Mutter kocht.",          ex_tr:"Annem yemek yapıyor."},
+      {id:"w8",  de:"der Vater",    tr:"baba",     ex_de:"Mein Vater arbeitet.",         ex_tr:"Babam çalışıyor."},
+      {id:"w9",  de:"das Kind",     tr:"çocuk",    ex_de:"Das Kind spielt.",             ex_tr:"Çocuk oynuyor."},
+      {id:"w10", de:"die Schule",   tr:"okul",     ex_de:"Die Schule beginnt um acht.",  ex_tr:"Okul sekizde başlıyor."},
+      {id:"w11", de:"das Auto",     tr:"araba",    ex_de:"Das Auto ist neu.",            ex_tr:"Araba yeni."},
+      {id:"w12", de:"die Straße",   tr:"sokak",    ex_de:"Die Straße ist lang.",         ex_tr:"Sokak uzun."},
+      {id:"w13", de:"die Zeit",     tr:"zaman",    ex_de:"Ich habe keine Zeit.",         ex_tr:"Zamanım yok."},
+      {id:"w14", de:"der Tag",      tr:"gün",      ex_de:"Heute ist ein guter Tag.",     ex_tr:"Bugün iyi bir gün."},
+      {id:"w15", de:"die Nacht",    tr:"gece",     ex_de:"Die Nacht ist ruhig.",         ex_tr:"Gece sessiz."},
+      {id:"w16", de:"das Essen",    tr:"yemek",    ex_de:"Das Essen schmeckt gut.",      ex_tr:"Yemek güzel."},
+      {id:"w17", de:"trinken",      tr:"içmek",    ex_de:"Wir trinken Tee.",             ex_tr:"Çay içiyoruz."},
+      {id:"w18", de:"gehen",        tr:"gitmek",   ex_de:"Ich gehe nach Hause.",         ex_tr:"Eve gidiyorum."},
+      {id:"w19", de:"sprechen",     tr:"konuşmak", ex_de:"Wir sprechen Deutsch.",        ex_tr:"Almanca konuşuyoruz."},
+      {id:"w20", de:"verstehen",    tr:"anlamak",  ex_de:"Ich verstehe dich.",           ex_tr:"Seni anlıyorum."}
+    ]
+  }
+  // Woche 2, 3, … folgen nach dem gleichen Muster
+};
+const PASS_THRESHOLD = 0.8;
+
+/* ---------- State ---------- */
+let profileId = localStorage.getItem('vokabel_profile_id');
+let profileName = localStorage.getItem('vokabel_profile_name');
+let progress = null; // aus Firebase geladen
+let learnIndex = 0;
+let testQueue = [];
+let testIndex = 0;
+let testResults = [];
+
+/* ---------- Profile picker ---------- */
+function loadProfiles(){
+  db.ref('profiles').once('value').then(snap => {
+    const data = snap.val() || {};
+    const list = document.getElementById('profileList');
+    list.innerHTML = '';
+    const ids = Object.keys(data);
+    document.getElementById('profileLoadStatus').textContent = ids.length
+      ? 'Profil auswählen oder neues anlegen:'
+      : 'Noch keine Profile – leg das erste an:';
+    ids.forEach(id => {
+      const btn = document.createElement('button');
+      btn.className = 'profile-btn';
+      btn.innerHTML = '<div class="avatar">' + data[id].name.charAt(0).toUpperCase() + '</div>' + data[id].name;
+      btn.onclick = () => selectProfile(id, data[id].name);
+      list.appendChild(btn);
+    });
+  }).catch(err => {
+    document.getElementById('profileLoadStatus').textContent = 'Verbindung fehlgeschlagen – Seite neu laden.';
+    console.error(err);
+  });
+}
+
+function createProfile(){
+  const input = document.getElementById('newProfileName');
+  const name = input.value.trim();
+  if(!name) return;
+  const ref = db.ref('profiles').push();
+  ref.set({name: name, createdAt: Date.now()}).then(() => {
+    selectProfile(ref.key, name);
+  });
+}
+
+function selectProfile(id, name){
+  profileId = id;
+  profileName = name;
+  localStorage.setItem('vokabel_profile_id', id);
+  localStorage.setItem('vokabel_profile_name', name);
+  loadProgressAndEnter();
+}
+
+function switchProfile(){
+  profileId = null;
+  localStorage.removeItem('vokabel_profile_id');
+  localStorage.removeItem('vokabel_profile_name');
+  goToView('profile');
+  loadProfiles();
+}
+
+/* ---------- Progress ---------- */
+function loadProgressAndEnter(){
+  db.ref('progress/' + profileId).once('value').then(snap => {
+    progress = snap.val() || {
+      level: "A1",
+      currentWeek: 1,
+      weeks: {},
+      vocabStats: {}
+    };
+    if(!progress.weeks) progress.weeks = {};
+    if(!progress.vocabStats) progress.vocabStats = {};
+    document.getElementById('topbarName').textContent = profileName + ' · wechseln';
+    renderDashboard();
+    goToView('dashboard');
+  });
+}
+
+function saveProgress(){
+  db.ref('progress/' + profileId).set(progress);
+}
+
+function currentWeekVocab(){
+  return (VOCAB_SETS[progress.currentWeek] || VOCAB_SETS[1]).words;
+}
+
+/* ---------- Navigation ---------- */
+function goToView(name){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelectorAll('.tab-item, .nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('[data-view="' + name + '"]').forEach(el => el.classList.add('active'));
+  if(name === 'learn') startLearnSession();
+  if(name === 'test') startTestSession();
+  if(name === 'dashboard' && progress) renderDashboard();
+}
+
+/* ---------- Dashboard ---------- */
+function renderDashboard(){
+  const week = progress.currentWeek;
+  const wordCount = currentWeekVocab().length;
+  const weekData = progress.weeks[week] || {};
+  const learnedCount = weekData.learnedAll ? wordCount : (weekData.learnIndex || 0);
+
+  document.getElementById('dashLevel').textContent = progress.level + ' · Woche ' + week;
+  document.getElementById('dashGreeting').textContent = 'Merhaba, ' + profileName;
+  document.getElementById('ringNum').textContent = learnedCount + '/' + wordCount;
+
+  buildRing(wordCount, learnedCount);
+
+  if(weekData.testPassed){
+    document.getElementById('testStatusText').textContent = 'Bestanden ✓';
+    document.getElementById('dashSub').textContent = 'Nächstes Set folgt, sobald Inhalte ergänzt sind';
+  } else if(weekData.learnedAll){
+    document.getElementById('testStatusText').textContent = 'Bereit zum Test';
+    document.getElementById('dashSub').textContent = 'Alle Vokabeln gelernt – jetzt testen';
+  } else {
+    document.getElementById('testStatusText').textContent = 'Erst Set fertig lernen';
+    document.getElementById('dashSub').textContent = 'Noch ' + (wordCount - learnedCount) + ' Vokabeln offen';
+  }
+
+  const weekNums = Object.keys(progress.weeks);
+  const allWeeks = weekNums.map(k => progress.weeks[k]);
+  const testsDone = allWeeks.filter(w => w.testScore !== undefined).length;
+  const avgScore = testsDone
+    ? Math.round(allWeeks.reduce((s,w) => s + (w.testScore||0), 0) / testsDone)
+    : null;
+  const totalLearned = weekNums.reduce((s,k) => {
+    const w = progress.weeks[k];
+    const setWords = (VOCAB_SETS[k] || {words:[]}).words.length;
+    return s + (w.testPassed ? setWords : 0);
+  }, 0) + learnedCount;
+
+  document.getElementById('statTests').textContent = testsDone;
+  document.getElementById('statAvg').textContent = avgScore !== null ? avgScore + '%' : '–';
+  document.getElementById('statLearned').textContent = totalLearned;
+}
+
+function buildRing(total, done){
+  const ns = "http://www.w3.org/2000/svg";
+  const g = document.getElementById('segments');
+  g.innerHTML = '';
+  const r = 78, cx = 90, cy = 90, gapDeg = 3;
+  const segDeg = 360/total - gapDeg;
+  for(let i=0;i<total;i++){
+    const startAngle = -90 + i*(360/total) + gapDeg/2;
+    const endAngle = startAngle + segDeg;
+    const toRad = d => (d*Math.PI)/180;
+    const x1 = cx + r*Math.cos(toRad(startAngle));
+    const y1 = cy + r*Math.sin(toRad(startAngle));
+    const x2 = cx + r*Math.cos(toRad(endAngle));
+    const y2 = cy + r*Math.sin(toRad(endAngle));
+    const largeArc = segDeg > 180 ? 1 : 0;
+    const path = document.createElementNS(ns,"path");
+    path.setAttribute("d", "M " + x1 + " " + y1 + " A " + r + " " + r + " 0 " + largeArc + " 1 " + x2 + " " + y2);
+    path.setAttribute("stroke", i < done ? "#E30613" : "#0B0B0C");
+    path.setAttribute("stroke-opacity", i < done ? "1" : "0.12");
+    path.setAttribute("stroke-width", "9");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("fill", "none");
+    g.appendChild(path);
+  }
+}
+
+/* ---------- Learn flow ---------- */
+function startLearnSession(){
+  const week = progress.currentWeek;
+  const weekData = progress.weeks[week] || {};
+  learnIndex = weekData.learnedAll ? 0 : (weekData.learnIndex || 0);
+  renderLearnCard();
+}
+function currentLearnWord(){
+  return currentWeekVocab()[learnIndex];
+}
+function renderLearnCard(){
+  const words = currentWeekVocab();
+  const w = words[learnIndex];
+  document.getElementById('learnSetTitle').textContent = 'Set ' + progress.currentWeek + ' · ' + progress.level;
+  document.getElementById('learnCounter').textContent = 'Vokabel ' + (learnIndex+1) + ' von ' + words.length;
+  document.getElementById('frontWord').textContent = w.de;
+  document.getElementById('frontExample').textContent = w.ex_de;
+  document.getElementById('backWord').textContent = w.tr;
+  document.getElementById('backExample').textContent = w.ex_tr;
+  document.getElementById('flipCard').classList.remove('flipped');
+
+  const prog = document.getElementById('cardProgress');
+  prog.innerHTML = '';
+  words.forEach((_,i) => {
+    const span = document.createElement('span');
+    if(i < learnIndex) span.classList.add('done');
+    if(i === learnIndex) span.classList.add('current');
+    prog.appendChild(span);
+  });
+}
+function nextLearnCard(){
+  const words = currentWeekVocab();
+  learnIndex++;
+  const week = progress.currentWeek;
+  if(!progress.weeks[week]) progress.weeks[week] = {};
+  progress.weeks[week].learnIndex = learnIndex;
+  if(learnIndex >= words.length){
+    progress.weeks[week].learnedAll = true;
+    saveProgress();
+    goToView('dashboard');
+    return;
+  }
+  saveProgress();
+  renderLearnCard();
+}
+function speak(text, lang){
+  if(!window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang;
+  const voices = speechSynthesis.getVoices();
+  const male = voices.find(v => v.lang.startsWith(lang.split('-')[0]) && /male|mann|erkek/i.test(v.name));
+  if(male) u.voice = male;
+  speechSynthesis.speak(u);
+}
+
+/* ---------- Test flow ---------- */
+function startTestSession(){
+  const week = progress.currentWeek;
+  const newWords = currentWeekVocab().map(w => Object.assign({}, w, {kind:'new'}));
+
+  // alte Vokabeln aus vorherigen Wochen einstreuen (max. 10, gewichtet nach Fehlerquote)
+  let oldWords = [];
+  for(let wk = 1; wk < week; wk++){
+    if(VOCAB_SETS[wk]) oldWords = oldWords.concat(VOCAB_SETS[wk].words.map(w => Object.assign({}, w, {kind:'old'})));
+  }
+  oldWords.sort((a,b) => {
+    const sa = progress.vocabStats[a.id] || {timesTested:0,timesCorrect:0};
+    const sb = progress.vocabStats[b.id] || {timesTested:0,timesCorrect:0};
+    const errRateA = sa.timesTested ? 1-(sa.timesCorrect/sa.timesTested) : 1;
+    const errRateB = sb.timesTested ? 1-(sb.timesCorrect/sb.timesTested) : 1;
+    return errRateB - errRateA;
+  });
+  oldWords = oldWords.slice(0, 10);
+
+  testQueue = newWords.concat(oldWords);
+  testIndex = 0;
+  testResults = [];
+  document.getElementById('testSetTitle').textContent = 'Set ' + week + ' · ' + progress.level;
+  renderTestQuestion();
+}
+function renderTestQuestion(){
+  const q = testQueue[testIndex];
+  document.getElementById('testCounter').textContent = 'Frage ' + (testIndex+1) + '/' + testQueue.length;
+  document.getElementById('testTag').textContent = q.kind === 'new' ? 'Neue Vokabel' : 'Alte Vokabel';
+  document.getElementById('testTag').className = 'tag ' + (q.kind === 'new' ? 'tag-new' : 'tag-old');
+  document.getElementById('testWord').textContent = q.de;
+  document.getElementById('testInput').value = '';
+  document.getElementById('testInput').focus();
+}
+function normalize(s){
+  return s.trim().toLowerCase().replace(/ı/g,'i').replace(/ş/g,'s').replace(/ğ/g,'g').replace(/ç/g,'c').replace(/ö/g,'o').replace(/ü/g,'u');
+}
+function submitAnswer(){
+  const q = testQueue[testIndex];
+  const answer = document.getElementById('testInput').value;
+  const correct = normalize(answer) === normalize(q.tr);
+  testResults.push({word: q.de + ' → ' + q.tr, correct: correct});
+
+  const stats = progress.vocabStats[q.id] || {timesTested:0, timesCorrect:0};
+  stats.timesTested++;
+  if(correct) stats.timesCorrect++;
+  progress.vocabStats[q.id] = stats;
+
+  testIndex++;
+  if(testIndex >= testQueue.length){
+    finishTest();
+  } else {
+    renderTestQuestion();
+  }
+}
+function finishTest(){
+  const correctCount = testResults.filter(r => r.correct).length;
+  const pct = Math.round((correctCount / testResults.length) * 100);
+  const passed = pct >= PASS_THRESHOLD * 100;
+  const week = progress.currentWeek;
+
+  if(!progress.weeks[week]) progress.weeks[week] = {};
+  progress.weeks[week].testScore = pct;
+  progress.weeks[week].testPassed = passed;
+  progress.weeks[week].testDate = Date.now();
+
+  if(passed && VOCAB_SETS[week+1]){
+    progress.currentWeek = week + 1;
+  }
+  saveProgress();
+  renderResults(pct, correctCount, passed, week);
+  goToView('results');
+}
+function renderResults(pct, correctCount, passed, week){
+  document.getElementById('resultsTitle').textContent = 'Wochentest · Set ' + week;
+  document.getElementById('resultsDate').textContent = 'Abgeschlossen am ' + new Date().toLocaleDateString('de-DE');
+  document.getElementById('resultsPct').textContent = pct + '%';
+  document.getElementById('resultsFrac').textContent = correctCount + '/' + testResults.length + ' richtig';
+  document.getElementById('resultsHeadline').textContent = passed
+    ? (VOCAB_SETS[week+1] ? 'Set ' + (week+1) + ' freigeschaltet' : 'Bestanden – weitere Sets folgen bald')
+    : 'Noch nicht bestanden – diese Woche nochmal üben';
+
+  const list = document.getElementById('resultsList');
+  list.innerHTML = '';
+  testResults.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'result-row';
+    row.innerHTML = '<span>' + r.word + '</span><span class="mark ' + (r.correct?'ok':'no') + '">' + (r.correct?'Richtig':'Nochmal üben') + '</span>';
+    list.appendChild(row);
+  });
+}
+
+/* ---------- Init ---------- */
+if(profileId && profileName){
+  loadProgressAndEnter();
+} else {
+  loadProfiles();
+}
+</script>
+</body>
+</html>
