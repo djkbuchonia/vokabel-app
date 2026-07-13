@@ -162,6 +162,7 @@
     <div class="nav-item" data-view="learn" onclick="goToView('learn')"><div class="tab-dot"></div>Lernen</div>
     <div class="nav-item" data-view="test" onclick="goToView('test')"><div class="tab-dot"></div>Test</div>
     <div class="nav-item" data-view="archive" onclick="goToView('archive')"><div class="tab-dot"></div>Archiv</div>
+    <div class="nav-item" data-view="translate" onclick="goToView('translate')"><div class="tab-dot"></div>Übers.</div>
     <div class="nav-item" data-view="results" onclick="goToView('results')"><div class="tab-dot"></div>Auswert.</div>
     <button class="switch-profile" onclick="switchProfile()">Profil wechseln</button>
   </div>
@@ -219,6 +220,9 @@
         <div class="top-label" id="learnLabel">Lernkarte</div>
         <h2 id="learnSetTitle">Set 1 · A1</h2>
         <div class="sub" id="learnCounter">Vokabel 1 von 20</div>
+        <div id="reviewFilterWrap" style="display:none;margin-bottom:16px;">
+          <button class="btn-ghost" onclick="reviewWeekUnknownOnly()">Nur "noch nicht" gekonnte wiederholen</button>
+        </div>
         <div class="card-progress" id="cardProgress"></div>
         <div class="flip-scene">
           <div class="flip-card" id="flipCard" onclick="this.classList.toggle('flipped')">
@@ -281,6 +285,25 @@
           <button class="filter-chip" data-f="dontknow" onclick="setArchiveFilter('dontknow')">Noch nicht</button>
         </div>
         <div class="archive-list" id="archiveList"></div>
+        <div style="margin-top:16px;">
+          <button class="btn-primary" onclick="practiceArchiveSelection()">Diese Auswahl üben</button>
+        </div>
+      </div>
+
+      <div class="view" id="view-translate">
+        <div class="top-label">Übersetzer</div>
+        <h2>Wort oder Satz übersetzen</h2>
+        <div class="sub">Kostenloser Dienst – für kurze Texte, keine Garantie auf perfekte Qualität</div>
+        <div class="filter-toggle">
+          <button class="filter-chip active" data-dir="de-tr" onclick="setTranslateDir('de-tr')">Deutsch → Türkisch</button>
+          <button class="filter-chip" data-dir="tr-de" onclick="setTranslateDir('tr-de')">Türkisch → Deutsch</button>
+        </div>
+        <textarea id="translateInput" class="answer-input" style="text-align:left;min-height:90px;resize:vertical;" placeholder="Text eingeben …"></textarea>
+        <button class="btn-primary" onclick="runTranslate()">Übersetzen</button>
+        <div class="question-card" style="margin-top:16px;text-align:left;display:none;" id="translateOutputWrap">
+          <div class="qlabel">Übersetzung</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;" id="translateOutput">–</div>
+        </div>
       </div>
 
       <div class="view" id="view-results">
@@ -301,6 +324,7 @@
       <button class="tab-item" data-view="learn" onclick="goToView('learn')"><div class="tab-dot"></div>Lernen</button>
       <button class="tab-item" data-view="test" onclick="goToView('test')"><div class="tab-dot"></div>Test</button>
       <button class="tab-item" data-view="archive" onclick="goToView('archive')"><div class="tab-dot"></div>Archiv</button>
+      <button class="tab-item" data-view="translate" onclick="goToView('translate')"><div class="tab-dot"></div>Übers.</button>
       <button class="tab-item" data-view="results" onclick="goToView('results')"><div class="tab-dot"></div>Auswert.</button>
     </div>
   </div>
@@ -568,6 +592,10 @@ function renderLearnCard(){
   document.getElementById('pronFeedback').textContent = '';
   document.getElementById('learnPrevBtn').disabled = learnIndex === 0;
 
+  const week = progress.currentWeek;
+  const wd = progress.weeks[week] || {};
+  document.getElementById('reviewFilterWrap').style.display = (wd.learnedAll && !practiceMode) ? 'block' : 'none';
+
   const prog = document.getElementById('cardProgress');
   prog.innerHTML = '';
   learnOrder.forEach((_,i) => {
@@ -576,6 +604,64 @@ function renderLearnCard(){
     if(i === learnIndex) span.classList.add('current');
     prog.appendChild(span);
   });
+}
+function reviewWeekUnknownOnly(){
+  const words = currentWeekVocab().filter(w => (progress.vocabStats[w.id]||{}).selfKnown !== true);
+  if(words.length === 0){ alert('Du kannst schon alle Wörter dieser Woche – nichts zum Wiederholen übrig.'); return; }
+  practiceMode = true;
+  learnOrder = shuffle(words);
+  learnIndex = 0;
+  document.getElementById('learnBackToDash').style.display = 'block';
+  document.getElementById('learnLabel').textContent = 'Wiederholung · nur "noch nicht"';
+  renderLearnCard();
+}
+function practiceArchiveSelection(){
+  const weeks = allUnlockedWeeks();
+  let all = [];
+  weeks.forEach(wk => all = all.concat(VOCAB_SETS[wk].words));
+  const search = (document.getElementById('archiveSearch').value || '').toLowerCase();
+  all = all.filter(w => {
+    const stat = progress.vocabStats[w.id] || {};
+    if(archiveFilter === 'know' && stat.selfKnown !== true) return false;
+    if(archiveFilter === 'dontknow' && stat.selfKnown !== false) return false;
+    if(search && !(w.de.toLowerCase().includes(search) || w.tr.toLowerCase().includes(search))) return false;
+    return true;
+  });
+  if(all.length === 0){ alert('Diese Auswahl ist leer – Filter oder Suche anpassen.'); return; }
+  practiceMode = true;
+  learnOrder = shuffle(all);
+  learnIndex = 0;
+  document.getElementById('learnBackToDash').style.display = 'block';
+  document.getElementById('learnLabel').textContent = 'Übungsrunde · eigene Auswahl';
+  goToView('learn');
+  renderLearnCard();
+}
+
+/* ---- Übersetzer (kostenlos via MyMemory API) ---- */
+let translateDir = 'de-tr';
+function setTranslateDir(dir){
+  translateDir = dir;
+  document.querySelectorAll('#view-translate .filter-chip').forEach(c => c.classList.remove('active'));
+  document.querySelector('#view-translate .filter-chip[data-dir="'+dir+'"]').classList.add('active');
+}
+function runTranslate(){
+  const text = document.getElementById('translateInput').value.trim();
+  const outWrap = document.getElementById('translateOutputWrap');
+  const out = document.getElementById('translateOutput');
+  if(!text) return;
+  outWrap.style.display = 'block';
+  out.textContent = 'Übersetze …';
+  const pair = translateDir === 'de-tr' ? 'de|tr' : 'tr|de';
+  fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=' + pair)
+    .then(r => r.json())
+    .then(data => {
+      if(data && data.responseData && data.responseData.translatedText){
+        out.textContent = data.responseData.translatedText;
+      } else {
+        out.textContent = 'Konnte nicht übersetzt werden, bitte nochmal versuchen.';
+      }
+    })
+    .catch(() => { out.textContent = 'Übersetzungsdienst gerade nicht erreichbar.'; });
 }
 function prevLearnCard(){
   if(learnIndex > 0){ learnIndex--; renderLearnCard(); }
