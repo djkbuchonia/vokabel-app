@@ -152,6 +152,10 @@
   .archive-status.know{background:var(--black);}
   .archive-status.dontknow{background:var(--red);}
   .archive-status.new{background:var(--line);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(11,11,12,0.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .modal-box{background:var(--white);border-radius:20px;padding:26px 22px;max-width:320px;width:100%;}
+  .modal-box .sub{margin-bottom:20px;}
 </style>
 </head>
 <body>
@@ -330,6 +334,18 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="bonusModal">
+  <div class="modal-box">
+    <div class="top-label">Bonus-Runde?</div>
+    <h2>Du bist schnell!</h2>
+    <div class="sub">Möchtest du direkt mit den nächsten 20 Wörtern weitermachen, oder bis Montag warten und in der Zwischenzeit im Archiv üben?</div>
+    <div class="btn-row">
+      <button class="btn-ghost" onclick="resolveBonusModal(false)">Bis Montag warten</button>
+      <button class="btn-primary" onclick="resolveBonusModal(true)">Jetzt weiterlernen</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyBgDhps4JsZuRnJW42utfyrQDuI_LIxpeo",
@@ -473,6 +489,10 @@ function goToView(name){
 }
 
 function dashMainAction(){
+  if(progress.nextUnlockAt && Date.now() < progress.nextUnlockAt){
+    goToView('archive');
+    return;
+  }
   const week = progress.currentWeek;
   const wd = progress.weeks[week] || {};
   if(wd.testPassed && !VOCAB_SETS[week+1]){
@@ -485,6 +505,7 @@ function dashMainAction(){
 }
 
 function renderDashboard(){
+  checkAndAdvancePacing();
   const week = progress.currentWeek;
   const words = currentWeekVocab();
   const wordCount = words.length;
@@ -498,7 +519,12 @@ function renderDashboard(){
   buildRing(wordCount, learnedCount);
 
   const btn = document.getElementById('dashMainBtn');
-  if(wd.testPassed){
+  if(progress.nextUnlockAt && Date.now() < progress.nextUnlockAt){
+    const dateStr = new Date(progress.nextUnlockAt).toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long'});
+    document.getElementById('testStatusText').textContent = 'Bestanden ✓';
+    document.getElementById('dashSub').textContent = 'Nächstes Set ab ' + dateStr + ' – bis dahin gerne üben';
+    btn.textContent = 'Zum Archiv / Üben';
+  } else if(wd.testPassed){
     document.getElementById('testStatusText').textContent = 'Bestanden ✓';
     document.getElementById('dashSub').textContent = VOCAB_SETS[week+1] ? 'Nächstes Set ist freigeschaltet' : 'Weitere Sets folgen bald';
     btn.textContent = VOCAB_SETS[week+1] ? 'Nächstes Set lernen' : 'Zum Archiv';
@@ -786,6 +812,34 @@ function submitAnswer(){
   if(testIndex >= testQueue.length) finishTest();
   else renderTestQuestion();
 }
+function getNextMonday(){
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  const day = d.getDay();
+  let diff = ((1 - day) + 7) % 7;
+  if(diff === 0) diff = 7;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+let bonusModalResolve = null;
+function showBonusModal(onYes, onNo){
+  bonusModalResolve = {onYes, onNo};
+  document.getElementById('bonusModal').style.display = 'flex';
+}
+function resolveBonusModal(yes){
+  document.getElementById('bonusModal').style.display = 'none';
+  if(!bonusModalResolve) return;
+  if(yes) bonusModalResolve.onYes(); else bonusModalResolve.onNo();
+  bonusModalResolve = null;
+}
+function checkAndAdvancePacing(){
+  if(progress.nextUnlockAt && Date.now() >= progress.nextUnlockAt){
+    const week = progress.currentWeek;
+    if(VOCAB_SETS[week+1]) progress.currentWeek = week + 1;
+    progress.nextUnlockAt = null;
+    saveProgress();
+  }
+}
 function finishTest(){
   const correctCount = testResults.filter(r => r.correct).length;
   const pct = Math.round((correctCount / testResults.length) * 100);
@@ -795,7 +849,17 @@ function finishTest(){
   progress.weeks[week].testScore = pct;
   progress.weeks[week].testPassed = passed;
   progress.weeks[week].testDate = Date.now();
-  if(passed && VOCAB_SETS[week+1]) progress.currentWeek = week + 1;
+
+  const isMonday = new Date().getDay() === 1;
+  if(passed && VOCAB_SETS[week+1] && !isMonday){
+    saveProgress();
+    showBonusModal(
+      () => { progress.currentWeek = week + 1; saveProgress(); renderResults(pct, correctCount, passed, week); goToView('results'); },
+      () => { progress.nextUnlockAt = getNextMonday().getTime(); saveProgress(); renderResults(pct, correctCount, passed, week); goToView('results'); }
+    );
+    return;
+  }
+  if(passed && VOCAB_SETS[week+1] && isMonday) progress.currentWeek = week + 1;
   saveProgress();
   renderResults(pct, correctCount, passed, week);
   goToView('results');
@@ -806,7 +870,7 @@ function renderResults(pct, correctCount, passed, week){
   document.getElementById('resultsPct').textContent = pct + '%';
   document.getElementById('resultsFrac').textContent = correctCount + '/' + testResults.length + ' richtig';
   document.getElementById('resultsHeadline').textContent = passed
-    ? (VOCAB_SETS[week+1] ? 'Set ' + (week+1) + ' freigeschaltet' : 'Bestanden – weitere Sets folgen bald')
+    ? (progress.nextUnlockAt ? 'Bestanden – nächstes Set ab Montag' : (VOCAB_SETS[week+1] ? 'Set ' + (week+1) + ' freigeschaltet' : 'Bestanden – weitere Sets folgen bald'))
     : 'Noch nicht bestanden – diese Woche nochmal üben';
   const list = document.getElementById('resultsList');
   list.innerHTML = '';
