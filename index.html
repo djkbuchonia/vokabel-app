@@ -559,11 +559,14 @@ function getOrderedLearnWords(){
   return shuffle(currentWeekVocab());
 }
 
-function goToView(name){
+function activateView(name){
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   document.querySelectorAll('.tab-item, .nav-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('[data-view="' + name + '"]').forEach(el => el.classList.add('active'));
+}
+function goToView(name){
+  activateView(name);
   if(name === 'learn'){ practiceMode = false; document.getElementById('learnBackToDash').style.display='none'; startLearnSession(); }
   if(name === 'test') startTestSession();
   if(name === 'archive') renderArchive();
@@ -683,7 +686,7 @@ function startWeakPractice(){
   learnIndex = 0;
   document.getElementById('learnBackToDash').style.display = 'block';
   document.getElementById('learnLabel').textContent = 'Übungsrunde · schwache Wörter';
-  goToView('learn');
+  activateView('learn');
   renderLearnCard();
 }
 function startRandomOldReview(){
@@ -699,7 +702,7 @@ function startRandomOldReview(){
   learnIndex = 0;
   document.getElementById('learnBackToDash').style.display = 'block';
   document.getElementById('learnLabel').textContent = 'Wiederholen · zufällige alte Wörter';
-  goToView('learn');
+  activateView('learn');
   renderLearnCard();
 }
 function currentLearnWord(){ return learnOrder[learnIndex]; }
@@ -757,7 +760,7 @@ function practiceArchiveSelection(){
   learnIndex = 0;
   document.getElementById('learnBackToDash').style.display = 'block';
   document.getElementById('learnLabel').textContent = 'Übungsrunde · eigene Auswahl';
-  goToView('learn');
+  activateView('learn');
   renderLearnCard();
 }
 
