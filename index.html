@@ -134,8 +134,8 @@
   .result-status{text-align:center;margin-bottom:22px;}
   .result-status .headline{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:var(--red);}
   .result-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
-  .result-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--paper);border-radius:12px;font-size:13px;}
-  .result-row .mark{font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;}
+  .result-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--paper);border-radius:12px;font-size:13px;}
+  .result-row .mark{font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;flex-shrink:0;margin-top:2px;}
   .mark.ok{background:var(--black);color:var(--white);}
   .mark.no{background:var(--red);color:var(--white);}
 
@@ -213,7 +213,10 @@
             </div>
             <button class="btn-primary" id="dashMainBtn" onclick="dashMainAction()">Weiter lernen</button>
             <div class="dash-secondary">
-              <button class="btn-ghost" onclick="startWeakPractice()">Schwache Wörter üben</button>
+              <div class="btn-row" style="margin-bottom:10px;">
+                <button class="btn-ghost" onclick="startWeakPractice()">Schwache Wörter üben</button>
+                <button class="btn-ghost" onclick="startRandomOldReview()">Wiederholen</button>
+              </div>
             </div>
           </div>
         </div>
@@ -553,16 +556,7 @@ function allUnlockedWeeks(){
 function currentWeekVocab(){ return (VOCAB_SETS[progress.currentWeek] || VOCAB_SETS[1]).words; }
 
 function getOrderedLearnWords(){
-  const week = progress.currentWeek;
-  const words = currentWeekVocab();
-  const wd = progress.weeks[week] || {};
-  if(wd.order && wd.order.length === words.length){
-    return wd.order.map(id => words.find(w => w.id === id)).filter(Boolean);
-  }
-  const ord = shuffle(words);
-  if(!progress.weeks[week]) progress.weeks[week] = {};
-  progress.weeks[week].order = ord.map(w => w.id);
-  return ord;
+  return shuffle(currentWeekVocab());
 }
 
 function goToView(name){
@@ -689,6 +683,22 @@ function startWeakPractice(){
   learnIndex = 0;
   document.getElementById('learnBackToDash').style.display = 'block';
   document.getElementById('learnLabel').textContent = 'Übungsrunde · schwache Wörter';
+  goToView('learn');
+  renderLearnCard();
+}
+function startRandomOldReview(){
+  const week = progress.currentWeek;
+  let pool = [];
+  for(let wk = 1; wk < week; wk++){
+    if(VOCAB_SETS[wk]) pool = pool.concat(VOCAB_SETS[wk].words);
+  }
+  if(pool.length === 0){ alert('Es gibt noch keine abgeschlossenen früheren Wochen zum Wiederholen.'); return; }
+  practiceWords = shuffle(pool).slice(0, 20);
+  practiceMode = true;
+  learnOrder = practiceWords;
+  learnIndex = 0;
+  document.getElementById('learnBackToDash').style.display = 'block';
+  document.getElementById('learnLabel').textContent = 'Wiederholen · zufällige alte Wörter';
   goToView('learn');
   renderLearnCard();
 }
@@ -891,7 +901,7 @@ function submitAnswer(){
   const q = testQueue[testIndex];
   const answer = document.getElementById('testInput').value;
   const correct = normalize(answer) === normalize(q.tr);
-  testResults.push({word: q.de + ' → ' + q.tr, correct: correct});
+  testResults.push({word: q.de, given: answer.trim(), correctAnswer: q.tr, correct: correct});
   const stats = progress.vocabStats[q.id] || {timesTested:0, timesCorrect:0};
   stats.timesTested++;
   if(correct) stats.timesCorrect++;
@@ -965,7 +975,17 @@ function renderResults(pct, correctCount, passed, week){
   testResults.forEach(r => {
     const row = document.createElement('div');
     row.className = 'result-row';
-    row.innerHTML = '<span>' + r.word + '</span><span class="mark ' + (r.correct?'ok':'no') + '">' + (r.correct?'Richtig':'Nochmal üben') + '</span>';
+    if(r.correct){
+      row.innerHTML = '<span>' + r.word + ' → ' + r.correctAnswer + '</span><span class="mark ok">Richtig</span>';
+    } else {
+      row.innerHTML =
+        '<div style="flex:1;">' +
+          '<div class="rw-word" style="font-weight:600;margin-bottom:4px;">' + r.word + '</div>' +
+          '<div style="font-size:12px;color:var(--red);">Deine Antwort: ' + (r.given || '–') + '</div>' +
+          '<div style="font-size:12px;color:var(--gray);">Richtig wäre: ' + r.correctAnswer + '</div>' +
+        '</div>' +
+        '<span class="mark no">Nochmal üben</span>';
+    }
     list.appendChild(row);
   });
 }
